@@ -56,4 +56,15 @@ public class MessageConstant {
     public static final String BANNER_STATUS_INVALID = "轮播图状态无效";
 
     public static final String FILE_UPLOAD = "文件上传";
+
+    public static final String PLAYLIST_NOT_FOUND = "歌单不存在";
+    public static final String SONG_NOT_FOUND = "歌曲不存在";
+    public static final String SONGS_ALREADY_IN_PLAYLIST = "部分或全部歌曲已在歌单中";
+    public static final String CLEAR_SUCCESS = "清空成功";
+    public static final String CLEAR_FAILED = "清空失败";
+    public static final String ADD_SUCCESS = "添加成功";
+    public static final String ADD_FAILED = "添加失败";
+    public static final String DELETE_SUCCESS = "删除成功";
+    public static final String DELETE_FAILED = "删除失败";
+    public static final String   PLAYLIST_NOT_OWNED= "您无权操作此歌单";
 }

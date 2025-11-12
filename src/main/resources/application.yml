@@ -75,6 +75,8 @@ role-path-permissions:
       - "/comment/"
       - "/banner/"
       - "/feedback/"
+      - "/playlist-binding/"
+
 
 #minio:
 #  endpoint: http://YOUR_MINIO_HOST:9000 # 修改你的 MinIO 端点

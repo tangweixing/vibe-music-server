@@ -39,7 +39,7 @@ public class Playlist implements Serializable {
     /**
      * 用户 id
      */
-    @TableId(value = "user_id")
+    @TableField(value = "user_id")
     private Long userId;
     /**
      * 歌单标题

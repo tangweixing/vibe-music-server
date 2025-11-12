@@ -10,6 +10,7 @@ import cn.edu.seig.vibemusic.result.PageResult;
 import cn.edu.seig.vibemusic.result.Result;
 import com.baomidou.mybatisplus.extension.service.IService;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.constraints.NotNull;
 
 import java.util.List;
 
@@ -52,5 +53,12 @@ public interface IPlaylistService extends IService<Playlist> {
 
     // 批量删除歌单
     Result deletePlaylists(List<Long> playlistIds);
-
+    /**
+     * 创建歌单
+     * @param playlistAddDTO 歌单信息
+     * @return 创建结果
+     */
+    Result createPlaylist(PlaylistAddDTO playlistAddDTO);
+// 判断歌单是否存在
+    boolean existsById(@NotNull(message = "歌单ID不能为空") Long playlistId);
 }

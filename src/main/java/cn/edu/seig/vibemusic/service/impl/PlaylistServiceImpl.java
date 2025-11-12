@@ -19,6 +19,7 @@ import cn.edu.seig.vibemusic.result.Result;
 import cn.edu.seig.vibemusic.service.IPlaylistService;
 import cn.edu.seig.vibemusic.service.MinioService;
 import cn.edu.seig.vibemusic.util.JwtUtil;
+import cn.edu.seig.vibemusic.util.ThreadLocalUtil;
 import cn.edu.seig.vibemusic.util.TypeConversionUtil;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
@@ -31,7 +32,9 @@ import org.springframework.cache.annotation.CacheConfig;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
+import org.springframework.util.CollectionUtils;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -76,8 +79,11 @@ public class PlaylistServiceImpl extends ServiceImpl<PlaylistMapper, Playlist> i
         if (playlistDTO.getStyle() != null) {
             queryWrapper.eq("style", playlistDTO.getStyle());
         }
-
+        if (playlistDTO.getIsPublic() != null) {
+            queryWrapper.eq("is_public", playlistDTO.getIsPublic());
+        }
         IPage<Playlist> playlistPage = playlistMapper.selectPage(page, queryWrapper);
+        System.out.println(playlistPage.getRecords());
         if (playlistPage.getRecords().size() == 0) {
             return Result.success(MessageConstant.DATA_NOT_FOUND, new PageResult<>(0L, null));
         }
@@ -112,6 +118,7 @@ public class PlaylistServiceImpl extends ServiceImpl<PlaylistMapper, Playlist> i
         if (playlistDTO.getStyle() != null) {
             queryWrapper.eq("style", playlistDTO.getStyle());
         }
+
         // 倒序排序
         queryWrapper.orderByDesc("id");
 
@@ -275,7 +282,6 @@ public class PlaylistServiceImpl extends ServiceImpl<PlaylistMapper, Playlist> i
 
         return Result.success(playlistMapper.selectCount(queryWrapper));
     }
-
     /**
      * 添加歌单
      *
@@ -316,6 +322,7 @@ public class PlaylistServiceImpl extends ServiceImpl<PlaylistMapper, Playlist> i
 
         Playlist playlist = new Playlist();
         BeanUtils.copyProperties(playlistUpdateDTO, playlist);
+        playlist.setUpdateTime(LocalDateTime.now()); // 假设有更新时间字段
         if (playlistMapper.updateById(playlist) == 0) {
             return Result.error(MessageConstant.UPDATE + MessageConstant.FAILED);
         }
@@ -402,6 +409,55 @@ public class PlaylistServiceImpl extends ServiceImpl<PlaylistMapper, Playlist> i
         }
 
         return Result.success(MessageConstant.DELETE + MessageConstant.SUCCESS);
+    }
+    /**
+     * 创建歌单
+     * @param playlistAddDTO 歌单信息
+     * @return 创建结果
+     */
+    @Override
+    @CacheEvict(cacheNames = "playlistCache", allEntries = true)
+    public Result createPlaylist(PlaylistAddDTO playlistAddDTO) {
+        // 从ThreadLocal获取当前登录用户信息
+        Map<String, Object> userMap = ThreadLocalUtil.get();
+        Long userId = TypeConversionUtil.toLong(userMap.get(JwtClaimsConstant.USER_ID));
+
+        // 校验歌单标题是否已存在
+        QueryWrapper<Playlist> queryWrapper = new QueryWrapper<>();
+        queryWrapper.eq("title", playlistAddDTO.getTitle())
+                .eq("user_id", userId);
+        if (playlistMapper.selectCount(queryWrapper) > 0) {
+            return Result.error("该歌单标题已存在");
+        }
+
+        // 转换DTO为实体对象
+        Playlist playlist = new Playlist();
+        BeanUtils.copyProperties(playlistAddDTO, playlist);
+        playlist.setUserId(userId);
+        playlist.setSongCount("0"); // 初始歌曲数量为0
+        playlist.setCreateTime(LocalDateTime.now());
+        playlist.setUpdateTime(LocalDateTime.now());
+
+        // 如果没有提供封面，设置默认封面
+        if (playlist.getCoverUrl() == null || playlist.getCoverUrl().isEmpty()) {
+            playlist.setCoverUrl("/default-playlist-cover.jpg");
+        }
+
+        // 保存歌单
+        int rows = playlistMapper.insert(playlist);
+        if (rows > 0) {
+            return Result.success(MessageConstant.ADD + MessageConstant.SUCCESS, playlist.getPlaylistId());
+        } else {
+            return Result.error(MessageConstant.ADD + MessageConstant.FAILED);
+        }
+    }
+// 判断歌单是否存在
+    @Override
+    public boolean existsById(Long playlistId) {
+        QueryWrapper<Playlist> queryWrapper = new QueryWrapper<>();
+        queryWrapper.eq("id", playlistId);
+        return playlistMapper.selectCount(queryWrapper) > 0;
+
     }
 
 }
