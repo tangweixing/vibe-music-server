@@ -15,4 +15,7 @@ public interface EmailService {
 
     // 发送验证码邮件
     String sendVerificationCodeEmail(String email);
+
+    // 新增推广邮件方法
+    boolean sendPromotionEmail(String to, String username, String content, String url);
 }

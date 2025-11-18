@@ -1,9 +1,11 @@
 package cn.edu.seig.vibemusic.service;
 
 import cn.edu.seig.vibemusic.model.dto.AdminDTO;
+import cn.edu.seig.vibemusic.model.dto.PromotionEmailDTO;
 import cn.edu.seig.vibemusic.model.entity.Admin;
 import cn.edu.seig.vibemusic.result.Result;
 import com.baomidou.mybatisplus.extension.service.IService;
+import jakarta.validation.Valid;
 
 /**
  * <p>
@@ -23,4 +25,7 @@ public interface IAdminService extends IService<Admin> {
 
     // 退出登录
     Result logout(String token);
+
+    // 发送推广邮件
+    Result sendPromotionEmail(@Valid PromotionEmailDTO promotionEmailDTO);
 }

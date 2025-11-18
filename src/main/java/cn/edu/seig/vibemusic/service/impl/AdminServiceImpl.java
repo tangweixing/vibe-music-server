@@ -5,8 +5,10 @@ import cn.edu.seig.vibemusic.constant.MessageConstant;
 import cn.edu.seig.vibemusic.enumeration.RoleEnum;
 import cn.edu.seig.vibemusic.mapper.AdminMapper;
 import cn.edu.seig.vibemusic.model.dto.AdminDTO;
+import cn.edu.seig.vibemusic.model.dto.PromotionEmailDTO;
 import cn.edu.seig.vibemusic.model.entity.Admin;
 import cn.edu.seig.vibemusic.result.Result;
+import cn.edu.seig.vibemusic.service.EmailService;
 import cn.edu.seig.vibemusic.service.IAdminService;
 import cn.edu.seig.vibemusic.util.JwtUtil;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
@@ -35,6 +37,8 @@ public class AdminServiceImpl extends ServiceImpl<AdminMapper, Admin> implements
     private AdminMapper adminMapper;
     @Autowired
     private StringRedisTemplate stringRedisTemplate;
+    @Autowired
+    private EmailService emailService;
 
     /**
      * 管理员注册
@@ -104,5 +108,16 @@ public class AdminServiceImpl extends ServiceImpl<AdminMapper, Admin> implements
         } else {
             return Result.error(MessageConstant.LOGOUT + MessageConstant.FAILED);
         }
+    }
+
+
+    public Result sendPromotionEmail(PromotionEmailDTO dto) {
+        boolean success = emailService.sendPromotionEmail(
+                dto.getEmail(),
+                dto.getUsername(),
+                dto.getContent(),
+                dto.getUrl()
+        );
+        return success ? Result.success("邮件发送成功") : Result.error("邮件发送失败");
     }
 }

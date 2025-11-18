@@ -12,5 +12,6 @@ public class PathConstant {
     public static final String SWAGGER_API_DOCS = "/v3/api-docs/**";
     public static final String SWAGGER_WEBJARS = "/webjars/**";
     public static final String SWAGGER_UI = "/swagger-ui/**";
+    public static final String ALI_SEND_SMS_PATH = "/user/sendPhoneVerificationCode";
 
 }

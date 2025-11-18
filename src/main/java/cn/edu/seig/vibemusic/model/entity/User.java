@@ -109,5 +109,15 @@ public class User implements Serializable {
      */
     @TableField("status")
     private UserStatusEnum userStatus;
+    /**
+     * 支付宝 openId
+     */
+    @TableField("ali_open_id")
+    private String aliOpenId;
 
+    /**
+     * 微信 openId
+     */
+    @TableField("wc_open_id")
+    private String wcOpenId;
 }

@@ -82,6 +82,9 @@ public class PlaylistServiceImpl extends ServiceImpl<PlaylistMapper, Playlist> i
         if (playlistDTO.getIsPublic() != null) {
             queryWrapper.eq("is_public", playlistDTO.getIsPublic());
         }
+        if (playlistDTO.getUserId() != null) {
+            queryWrapper.eq("user_id", playlistDTO.getUserId());
+        }
         IPage<Playlist> playlistPage = playlistMapper.selectPage(page, queryWrapper);
         System.out.println(playlistPage.getRecords());
         if (playlistPage.getRecords().size() == 0) {
@@ -118,7 +121,9 @@ public class PlaylistServiceImpl extends ServiceImpl<PlaylistMapper, Playlist> i
         if (playlistDTO.getStyle() != null) {
             queryWrapper.eq("style", playlistDTO.getStyle());
         }
-
+        if (playlistDTO.getUserId() != null) {
+            queryWrapper.eq("user_id", playlistDTO.getUserId());
+        }
         // 倒序排序
         queryWrapper.orderByDesc("id");
 
@@ -279,7 +284,6 @@ public class PlaylistServiceImpl extends ServiceImpl<PlaylistMapper, Playlist> i
         if (style != null) {
             queryWrapper.eq("style", style);
         }
-
         return Result.success(playlistMapper.selectCount(queryWrapper));
     }
     /**

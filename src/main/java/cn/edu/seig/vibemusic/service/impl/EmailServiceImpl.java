@@ -2,6 +2,7 @@ package cn.edu.seig.vibemusic.service.impl;
 
 import cn.edu.seig.vibemusic.constant.MessageConstant;
 import cn.edu.seig.vibemusic.service.EmailService;
+import cn.edu.seig.vibemusic.template.EmailTemplate;
 import cn.edu.seig.vibemusic.util.RandomCodeUtil;
 import jakarta.mail.MessagingException;
 import jakarta.mail.internet.MimeMessage;
@@ -69,6 +70,31 @@ public class EmailServiceImpl implements EmailService {
             return verificationCode;
         } else {
             return null;
+        }
+    }
+
+    // 实现发送推广邮件方法
+    @Override
+    public boolean sendPromotionEmail(String to, String username, String content, String url) {
+        String subject = "【Vibe Music】专属福利活动";
+        String htmlContent = EmailTemplate.getPromotionTemplate(username, content, url);
+        return sendHtmlEmail(to, subject, htmlContent);
+    }
+
+    // 新增发送HTML邮件方法
+    private boolean sendHtmlEmail(String to, String subject, String htmlContent) {
+        MimeMessage mimeMessage = mailSender.createMimeMessage();
+        try {
+            MimeMessageHelper helper = new MimeMessageHelper(mimeMessage, true);
+            helper.setFrom(from);
+            helper.setTo(to);
+            helper.setSubject(subject);
+            helper.setText(htmlContent, true); // 第二个参数设为true表示发送HTML内容
+            mailSender.send(mimeMessage);
+            return true;
+        } catch (MessagingException e) {
+            log.error("推广邮件发送失败", e);
+            return false;
         }
     }
 }

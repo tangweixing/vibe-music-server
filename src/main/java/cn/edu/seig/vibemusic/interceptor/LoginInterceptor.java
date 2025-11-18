@@ -64,7 +64,8 @@ public class LoginInterceptor implements HandlerInterceptor {
                 PathConstant.SWAGGER_DOC_HTML,
                 PathConstant.SWAGGER_API_DOCS,
                 PathConstant.SWAGGER_WEBJARS,
-                PathConstant.SWAGGER_UI
+                PathConstant.SWAGGER_UI,
+                PathConstant.ALI_SEND_SMS_PATH
         );
 
         // 检查路径是否匹配
@@ -98,6 +99,7 @@ public class LoginInterceptor implements HandlerInterceptor {
                 ThreadLocalUtil.set(claims);
                 return true;
             } else {
+                System.out.println("无权限访问，角色：" + role + "，请求路径：" + requestURI);
                 sendErrorResponse(response, 403, MessageConstant.NO_PERMISSION); // 无权限访问
                 return false;
             }

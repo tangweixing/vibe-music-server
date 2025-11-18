@@ -13,7 +13,7 @@ spring:
       database: 1
       host: 127.0.0.1
       port: 6379
-#      password:
+  #      password:
 
   servlet:
     multipart:
@@ -76,6 +76,7 @@ role-path-permissions:
       - "/banner/"
       - "/feedback/"
       - "/playlist-binding/"
+      - "/api/oauth/"
 
 
 #minio:
@@ -93,3 +94,27 @@ minio:
   mvc:
     pathmatch:
       matching-strategy: ant_path_matcher
+# 阿里云短信配置（个人开发者需自行申请）
+aliyun:
+  sms:
+    accessKeyId: LTAI5tKivEyGEyA4TfmFeqx2
+    #    accessKeySecret:
+    accessKeySecret: ${ALIYUN_SMS_ACCESS_KEY_SECRET:default}
+    signName: 速通互联验证码
+    templateCode: 100001
+# 微信登录配置
+wechat:
+  app-id: 你的微信APPID
+  app-secret: 你的微信APPSECRET
+
+# 支付宝登录配置
+alipay:
+  app-id: 2021006105637968
+  # 私钥必须为PKCS8格式，添加首尾标识并正确换行（使用|保留换行）
+  #  private-key:
+  # 公钥添加首尾标识并正确换行
+  #  public-key:
+  private-key: ${ALIPAY_PRIVATE_KEY:default}
+  public-key: ${ALIPAY_PUBLIC_KEY:default}
+  gateway-url: https://openapi.alipay.com/gateway.do
+  redirect-url: http://vd66b89f.natappfree.cc/api/oauth/alipay/callback

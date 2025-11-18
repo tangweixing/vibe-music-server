@@ -67,4 +67,11 @@ public class MessageConstant {
     public static final String DELETE_SUCCESS = "删除成功";
     public static final String DELETE_FAILED = "删除失败";
     public static final String   PLAYLIST_NOT_OWNED= "您无权操作此歌单";
+
+    // 新增手机相关常量
+    public static final String SMS_SEND_SUCCESS = "短信发送成功";
+    public static final String SMS_SEND_FAILED = "短信发送失败";
+    public static final String LOGIN_COOLDOWN = "登录过于频繁，请等待";
+
+    public static final String SMS_VERIFICATION_CODE_INVALID = "短信验证码无效";
 }

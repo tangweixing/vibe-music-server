@@ -527,4 +527,15 @@ public class AdminController {
             @RequestBody @Parameter(description = "歌单ID列表", required = true, example = "[4001,4002]") List<Long> playlistIds) {
         return playlistService.deletePlaylists(playlistIds);
     }
+    @Operation(summary = "发送推广邮件", description = "向指定用户发送推广邮件")
+    @PostMapping("/sendPromotionEmail")
+    public Result sendPromotionEmail(
+            @RequestBody @Valid PromotionEmailDTO promotionEmailDTO,
+            BindingResult bindingResult) {
+        String errorMessage = BindingResultUtil.handleBindingResultErrors(bindingResult);
+        if (errorMessage != null) {
+            return Result.error(errorMessage);
+        }
+        return adminService.sendPromotionEmail(promotionEmailDTO);
+    }
 }

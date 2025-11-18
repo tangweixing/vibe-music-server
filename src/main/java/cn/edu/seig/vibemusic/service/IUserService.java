@@ -7,6 +7,7 @@ import cn.edu.seig.vibemusic.model.vo.UserVO;
 import cn.edu.seig.vibemusic.result.PageResult;
 import cn.edu.seig.vibemusic.result.Result;
 import com.baomidou.mybatisplus.extension.service.IService;
+import jakarta.validation.constraints.NotBlank;
 
 import java.util.List;
 
@@ -73,4 +74,20 @@ public interface IUserService extends IService<User> {
 
     // 批量删除用户
     Result deleteUsers(List<Long> userIds);
+
+    // 发送手机验证码
+    Result sendPhoneVerificationCode(String phone);
+
+    // 手机号注册
+    Result phoneRegister(UserPhoneRegisterDTO userPhoneRegisterDTO);
+
+    // 手机号密码登录
+    Result phoneLogin(UserPhoneLoginDTO userPhoneLoginDTO);
+
+    // 手机号验证码登录
+    Result phoneCodeLogin(UserPhoneCodeLoginDTO userPhoneCodeLoginDTO);
+    // 微信登录
+    Result wxLogin(@NotBlank(message = "code不能为空") String code);
+    // 支付宝登录
+    Result alipayLogin(@NotBlank(message = "authCode不能为空") String authCode);
 }

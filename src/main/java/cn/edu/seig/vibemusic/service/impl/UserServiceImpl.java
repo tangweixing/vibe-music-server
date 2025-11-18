@@ -15,19 +15,32 @@ import cn.edu.seig.vibemusic.result.Result;
 import cn.edu.seig.vibemusic.service.EmailService;
 import cn.edu.seig.vibemusic.service.IUserService;
 import cn.edu.seig.vibemusic.service.MinioService;
+import cn.edu.seig.vibemusic.service.SmsService;
 import cn.edu.seig.vibemusic.util.JwtUtil;
+import cn.edu.seig.vibemusic.util.RandomCodeUtil;
 import cn.edu.seig.vibemusic.util.ThreadLocalUtil;
 import cn.edu.seig.vibemusic.util.TypeConversionUtil;
+import com.alipay.api.AlipayClient;
+import com.alipay.api.request.AlipaySystemOauthTokenRequest;
+import com.alipay.api.request.AlipayUserInfoShareRequest;
+import com.alipay.api.response.AlipaySystemOauthTokenResponse;
+import com.alipay.api.response.AlipayUserInfoShareResponse;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+;
+import me.chanjar.weixin.common.bean.WxOAuth2UserInfo;
+import me.chanjar.weixin.common.bean.oauth2.WxOAuth2AccessToken;
+import me.chanjar.weixin.mp.api.WxMpService;
+import me.chanjar.weixin.mp.bean.result.WxMpUser;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.CacheConfig;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.stereotype.Service;
 import org.springframework.util.DigestUtils;
 
@@ -57,7 +70,12 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
     private EmailService emailService;
     @Autowired
     private MinioService minioService;
-
+    @Autowired
+    private SmsService smsService;
+    @Autowired
+    private WxMpService wxMpService;
+    @Autowired
+    private AlipayClient alipayClient;
     /**
      * 发送验证码
      *
@@ -312,7 +330,9 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
     @CacheEvict(cacheNames = {"userCache", "userFavoriteCache", "songCache", "artistCache", "playlistCache"}, allEntries = true)
     public Result logout(String token) {
         // 注销token
+        System.out.println(token);
         Boolean result = stringRedisTemplate.delete(token);
+        System.out.println(result);
         if (result != null && result) {
             return Result.success(MessageConstant.LOGOUT + MessageConstant.SUCCESS);
         } else {
@@ -549,5 +569,340 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
         }
         return Result.success(MessageConstant.DELETE + MessageConstant.SUCCESS);
     }
+    /**
+     * 发送手机验证码
+     */
+    @Override
+    public Result sendPhoneVerificationCode(String phone) {
+   /*     // 1. 检查手机号是否已被注册
+        User userByPhone = userMapper.selectOne(new QueryWrapper<User>().eq("phone", phone));
+        if (userByPhone != null) {
+            return Result.error(MessageConstant.PHONE + MessageConstant.ALREADY_EXISTS);
+        }*/
 
+        // 2. 检查冷却时间（1分钟内不允许重复发送）
+        String coolDownKey = "sms:coolDown:" + phone; // 冷却时间Redis键
+        String lastSendTime = stringRedisTemplate.opsForValue().get(coolDownKey);
+
+        if (lastSendTime != null) {
+            // 若冷却时间未过期，返回错误提示
+            return Result.error("1分钟内只能发送一次验证码，请稍后再试");
+        }
+
+        // 3. 调用短信服务发送验证码
+        String verificationCode = smsService.sendVerificationCode(phone);
+        if (verificationCode == null) {
+            return Result.error(MessageConstant.SMS_SEND_FAILED);
+        }
+
+        // 4. 存储验证码到Redis（5分钟有效期）
+        String codeKey = "phoneVerificationCode:" + phone;
+        stringRedisTemplate.opsForValue().set(codeKey, verificationCode, 5, TimeUnit.MINUTES);
+
+        // 5. 设置冷却时间（1分钟），使用当前时间戳作为值（便于后续扩展）
+        stringRedisTemplate.opsForValue().set(coolDownKey, String.valueOf(System.currentTimeMillis()), 1, TimeUnit.MINUTES);
+
+        return Result.success(MessageConstant.SMS_SEND_SUCCESS);
+    }
+
+    /**
+     * 手机号注册
+     */
+    @Override
+    @CacheEvict(cacheNames = "userCache", allEntries = true)
+    public Result phoneRegister(UserPhoneRegisterDTO userPhoneRegisterDTO) {
+        String phone = userPhoneRegisterDTO.getPhone();
+
+        // 验证验证码是否正确
+        boolean isCodeValid = verifyPhoneVerificationCode(phone, userPhoneRegisterDTO.getVerificationCode());
+        if (!isCodeValid) {
+            return Result.error(MessageConstant.VERIFICATION_CODE + MessageConstant.INVALID);
+        }
+
+        // 删除Redis中的验证码
+        stringRedisTemplate.delete("phoneVerificationCode:" + phone);
+
+        // 检查手机号是否已注册
+        User userByPhone = userMapper.selectOne(new QueryWrapper<User>().eq("phone", phone));
+        if (userByPhone != null) {
+            return Result.error(MessageConstant.PHONE + MessageConstant.ALREADY_EXISTS);
+        }
+
+        // 检查用户名是否已存在（这里使用手机号作为默认用户名，也可以让用户单独设置）
+        String username = "user_" + phone.substring(7); // 生成默认用户名
+        User userByUsername = userMapper.selectOne(new QueryWrapper<User>().eq("username", username));
+        if (userByUsername != null) {
+            username = username + System.currentTimeMillis() % 1000; // 确保用户名唯一
+        }
+
+        // 密码加密存储
+        String passwordMD5 = DigestUtils.md5DigestAsHex(userPhoneRegisterDTO.getPassword().getBytes());
+
+        // 创建用户
+        User user = new User();
+        user.setUsername(username)
+                .setPassword(passwordMD5)
+                .setPhone(phone)
+                .setEmail("test@example.com") // 手机号注册时邮箱为空
+                .setCreateTime(LocalDateTime.now())
+                .setUpdateTime(LocalDateTime.now())
+                .setUserStatus(UserStatusEnum.ENABLE);
+
+        if (userMapper.insert(user) == 0) {
+            return Result.error(MessageConstant.REGISTER + MessageConstant.FAILED);
+        }
+        return Result.success(MessageConstant.REGISTER + MessageConstant.SUCCESS);
+    }
+
+    /**
+     * 手机号密码登录
+     */
+    @Override
+    public Result phoneLogin(UserPhoneLoginDTO userPhoneLoginDTO) {
+        String phone = userPhoneLoginDTO.getPhone();
+        String password = userPhoneLoginDTO.getPassword();
+
+        // 检查是否处于冷却期
+        String coolDownKey = "loginCoolDown:" + phone;
+        if (Boolean.TRUE.equals(stringRedisTemplate.hasKey(coolDownKey))) {
+            Long remainingTime = stringRedisTemplate.getExpire(coolDownKey, TimeUnit.SECONDS);
+            return Result.error(MessageConstant.LOGIN_COOLDOWN + remainingTime + "秒");
+        }
+
+        // 检查用户是否存在
+        User user = userMapper.selectOne(new QueryWrapper<User>().eq("phone", phone));
+        if (user == null) {
+            return Result.error(MessageConstant.PHONE + MessageConstant.NOT_EXIST + "，请先注册");
+        }
+
+        // 检查账号状态
+        if (user.getUserStatus() != UserStatusEnum.ENABLE) {
+            return Result.error(MessageConstant.ACCOUNT_LOCKED);
+        }
+
+        // 验证密码
+        if (!DigestUtils.md5DigestAsHex(password.getBytes()).equals(user.getPassword())) {
+            // 密码错误处理
+            String errorCountKey = "loginErrorCount:" + phone;
+            ValueOperations<String, String> operations = stringRedisTemplate.opsForValue();
+
+            String countStr = operations.get(errorCountKey);
+            int errorCount = countStr == null ? 0 : Integer.parseInt(countStr);
+            errorCount++;
+
+            if (errorCount >= 7) {
+                // 错误次数达到7次，设置冷却时间1分钟
+                stringRedisTemplate.opsForValue().set(coolDownKey, "1", 1, TimeUnit.MINUTES);
+                stringRedisTemplate.delete(errorCountKey); // 清除错误计数
+                return Result.error(MessageConstant.PASSWORD + MessageConstant.ERROR + "，错误次数过多，请1分钟后再试");
+            } else {
+                // 记录错误次数，设置10分钟过期
+                operations.set(errorCountKey, String.valueOf(errorCount), 10, TimeUnit.MINUTES);
+                int remaining = 7 - errorCount;
+                return Result.error(MessageConstant.PASSWORD + MessageConstant.ERROR + "，还剩" + remaining + "次机会");
+            }
+        }
+
+        // 登录成功，清除错误计数
+        stringRedisTemplate.delete("loginErrorCount:" + phone);
+
+        // 生成token
+        Map<String, Object> claims = new HashMap<>();
+        claims.put(JwtClaimsConstant.ROLE, RoleEnum.USER.getRole());
+        claims.put(JwtClaimsConstant.USER_ID, user.getUserId());
+        claims.put(JwtClaimsConstant.USERNAME, user.getUsername());
+        claims.put(JwtClaimsConstant.PHONE, user.getPhone());
+        String token = JwtUtil.generateToken(claims);
+
+        // 将token存入redis
+        stringRedisTemplate.opsForValue().set(token, token, 6, TimeUnit.HOURS);
+
+        return Result.success(MessageConstant.LOGIN + MessageConstant.SUCCESS, token);
+    }
+
+    /**
+     * 手机号验证码登录
+     */
+    @Override
+    public Result phoneCodeLogin(UserPhoneCodeLoginDTO userPhoneCodeLoginDTO) {
+        String phone = userPhoneCodeLoginDTO.getPhone();
+
+        // 验证验证码是否正确
+        boolean isCodeValid = verifyPhoneVerificationCode(phone, userPhoneCodeLoginDTO.getVerificationCode());
+        if (!isCodeValid) {
+            return Result.error(MessageConstant.VERIFICATION_CODE + MessageConstant.INVALID);
+        }
+
+        // 删除Redis中的验证码
+        stringRedisTemplate.delete("phoneVerificationCode:" + phone);
+
+        // 检查用户是否存在
+        User user = userMapper.selectOne(new QueryWrapper<User>().eq("phone", phone));
+        if (user == null) {
+            return Result.error(MessageConstant.PHONE + MessageConstant.NOT_EXIST + "，请先注册");
+        }
+
+        // 检查账号状态
+        if (user.getUserStatus() != UserStatusEnum.ENABLE) {
+            return Result.error(MessageConstant.ACCOUNT_LOCKED);
+        }
+
+        // 生成token
+        Map<String, Object> claims = new HashMap<>();
+        claims.put(JwtClaimsConstant.ROLE, RoleEnum.USER.getRole());
+        claims.put(JwtClaimsConstant.USER_ID, user.getUserId());
+        claims.put(JwtClaimsConstant.USERNAME, user.getUsername());
+        claims.put(JwtClaimsConstant.PHONE, user.getPhone());
+        String token = JwtUtil.generateToken(claims);
+
+        // 将token存入redis
+        stringRedisTemplate.opsForValue().set(token, token, 6, TimeUnit.HOURS);
+
+        return Result.success(MessageConstant.LOGIN + MessageConstant.SUCCESS, token);
+    }
+
+    /**
+     * 验证手机验证码
+     */
+    private boolean verifyPhoneVerificationCode(String phone, String verificationCode) {
+        String storedCode = stringRedisTemplate.opsForValue().get("phoneVerificationCode:" + phone);
+        return storedCode != null && storedCode.equals(verificationCode);
+    }
+    @Override
+    public Result wxLogin(String code) {
+        try {
+            // 1. 获取微信 OAuth2 访问令牌
+            WxOAuth2AccessToken accessToken = wxMpService.getOAuth2Service().getAccessToken(code);
+
+            // 2. 获取用户信息（注意：返回类型是 WxOAuth2UserInfo，而非 WxMpUser）
+            WxOAuth2UserInfo wxUserInfo = wxMpService.getOAuth2Service().getUserInfo(accessToken, null);
+
+            // 3. 查找或创建用户（使用 WxOAuth2UserInfo 的方法获取 OpenId 等信息）
+            User user = userMapper.selectOne(new QueryWrapper<User>()
+                    .eq("wx_openid", wxUserInfo.getOpenid())); // 注意方法名是 getOpenid()（小写d）
+
+            if (user == null) {
+                user = new User();
+                user.setUsername("wx_" + wxUserInfo.getOpenid().substring(0, 8))
+                        .setWcOpenId(wxUserInfo.getOpenid()) // 设置 OpenId
+                        .setUsername(wxUserInfo.getNickname()) // 设置昵称
+                        .setUserAvatar(wxUserInfo.getHeadImgUrl()) // 设置头像
+                        .setCreateTime(LocalDateTime.now())
+                        .setUpdateTime(LocalDateTime.now())
+                        .setUserStatus(UserStatusEnum.ENABLE);
+                userMapper.insert(user);
+            }
+
+            // 4. 生成 token（沿用原有逻辑）
+            Map<String, Object> claims = new HashMap<>();
+            claims.put(JwtClaimsConstant.USER_ID, user.getUserId());
+            claims.put(JwtClaimsConstant.USERNAME, user.getUsername());
+            String token = JwtUtil.generateToken(claims);
+            stringRedisTemplate.opsForValue().set(token, token, 6, TimeUnit.HOURS);
+
+            return Result.success("登录成功", token);
+        } catch (Exception e) {
+            log.error("微信登录失败", e);
+            return Result.error("微信登录失败");
+        }
+    }
+    @Override
+    public Result alipayLogin(String authCode) {
+        try {
+            // 调用支付宝接口获取OpenId（仅调用令牌接口，不获取用户敏感信息）
+            AlipaySystemOauthTokenRequest tokenRequest = new AlipaySystemOauthTokenRequest();
+            tokenRequest.setCode(authCode);
+            tokenRequest.setGrantType("authorization_code");
+            AlipaySystemOauthTokenResponse tokenResponse = alipayClient.execute(tokenRequest);
+            System.out.println(tokenResponse.getBody());
+
+            // 校验令牌接口调用结果
+     /*       if (!"10000".equals(tokenResponse.getCode())) {
+                String errorMsg = "获取支付宝令牌失败：" + tokenResponse.getSubMsg();
+                log.error(errorMsg);
+                return Result.error(errorMsg);
+            }*/
+
+            String openId = tokenResponse.getOpenId();
+            if (openId == null || openId.trim().isEmpty()) {
+                log.error("未获取到支付宝用户OpenId");
+                return Result.error("支付宝登录失败：用户标识获取异常");
+            }
+
+            // 查找或创建用户（仅用OpenId，无用户昵称、头像等信息）
+            User user = userMapper.selectOne(new QueryWrapper<User>()
+                    .eq("ali_open_id", openId));
+
+            if (user == null) {
+                user = new User();
+                // 生成默认用户名（使用OpenId片段）
+                String defaultUsername = "alipay_" + (openId.length() > 8 ? openId.substring(0, 8) : openId);
+                // 密码加密存储
+                String passwordMD5 = DigestUtils.md5DigestAsHex("123456".getBytes());
+                user.setUsername(defaultUsername)
+                        .setAliOpenId(openId)
+                        .setPassword(passwordMD5)
+                        .setEmail("")
+                        .setCreateTime(LocalDateTime.now())
+                        .setUpdateTime(LocalDateTime.now())
+                        .setUserStatus(UserStatusEnum.ENABLE);
+                userMapper.insert(user);
+            }
+
+            // 生成token
+            Map<String, Object> claims = new HashMap<>();
+            claims.put(JwtClaimsConstant.USER_ID, user.getUserId());
+            claims.put(JwtClaimsConstant.USERNAME, user.getUsername());
+            claims.put(JwtClaimsConstant.ROLE, RoleEnum.USER.getRole());
+            String token = JwtUtil.generateToken(claims);
+            stringRedisTemplate.opsForValue().set(token, token, 6, TimeUnit.HOURS);
+
+            return Result.success("登录成功", token);
+        } catch (Exception e) {
+            log.error("支付宝登录失败", e);
+            return Result.error("支付宝登录失败");
+        }
+    }
+    /*@Override
+    public Result alipayLogin(String authCode) {
+        try {
+            // 调用支付宝接口获取用户信息
+            AlipaySystemOauthTokenRequest tokenRequest = new AlipaySystemOauthTokenRequest();
+            tokenRequest.setCode(authCode);
+            tokenRequest.setGrantType("authorization_code");
+            AlipaySystemOauthTokenResponse tokenResponse = alipayClient.execute(tokenRequest);
+
+            AlipayUserInfoShareRequest userRequest = new AlipayUserInfoShareRequest();
+            AlipayUserInfoShareResponse userResponse = alipayClient.execute(
+                    userRequest, tokenResponse.getAccessToken());
+            System.out.println(userResponse.getBody());
+            // 查找或创建用户
+            User user = userMapper.selectOne(new QueryWrapper<User>()
+                    .eq("ali_open_id", userResponse.getOpenId()));
+
+            if (user == null) {
+                user = new User();
+                user.setUsername("alipay_" + userResponse.getOpenId().substring(0, 8))
+                        .setAliOpenId(userResponse.getOpenId())
+                        .setUsername(userResponse.getNickName())
+                        .setUserAvatar(userResponse.getAvatar())
+                        .setCreateTime(LocalDateTime.now())
+                        .setUpdateTime(LocalDateTime.now())
+                        .setUserStatus(UserStatusEnum.ENABLE);
+                userMapper.insert(user);
+            }
+
+            // 生成token
+            Map<String, Object> claims = new HashMap<>();
+            claims.put(JwtClaimsConstant.USER_ID, user.getUserId());
+            claims.put(JwtClaimsConstant.USERNAME, user.getUsername());
+            String token = JwtUtil.generateToken(claims);
+            stringRedisTemplate.opsForValue().set(token, token, 6, TimeUnit.HOURS);
+
+            return Result.success("登录成功", token);
+        } catch (Exception e) {
+            log.error("支付宝登录失败", e);
+            return Result.error("支付宝登录失败");
+        }
+    }*/
 }
