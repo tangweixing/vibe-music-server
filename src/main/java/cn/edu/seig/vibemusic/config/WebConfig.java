@@ -18,7 +18,7 @@ public class WebConfig implements WebMvcConfigurer {
         registry.addInterceptor(loginInterceptor)
                 .addPathPatterns("/**") // 拦截所有请求
                 .excludePathPatterns(
-                        "/api/oauth/alipay/callback",
+                        "/api/oauth/alipay/callback","/payment/alipay/callback","/api/oauth/wechat/callback","/payment/wechat/callback",
                         "/admin/login", "/admin/logout", "/admin/register",
                         "/user/login", "/user/phoneLogin","/user/phoneRegister",
                         "/user/phoneCodeLogin","/user/sendPhoneVerificationCode",

@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="cn.edu.seig.vibemusic.mapper.UserBalanceMapper">
+
+    <!-- 乐观锁更新余额（version匹配才更新，防止并发问题） -->
+    <update id="updateBalanceWithVersion">
+        UPDATE tb_user_balance
+        SET available_balance = #{balance.availableBalance},
+            frozen_balance = #{balance.frozenBalance},
+            total_balance = #{balance.totalBalance},
+            version = version + 1,
+            update_time = NOW()
+        WHERE id = #{balance.id}
+          AND version = #{balance.version}
+    </update>
+</mapper>

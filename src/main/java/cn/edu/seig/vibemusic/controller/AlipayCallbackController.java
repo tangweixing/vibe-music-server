@@ -36,7 +36,7 @@ public class AlipayCallbackController {
     public RedirectView alipayCallback(
             @RequestParam("auth_code") String code,
             @RequestParam(value = "state", required = false) String state) {
-
+        System.out.println(code+state);
         try {
             // 1. 验证state参数（防CSRF攻击，根据实际业务实现）
             // 例如：检查state是否与前端发起授权时存入Redis的state一致

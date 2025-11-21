@@ -74,4 +74,24 @@ public class MessageConstant {
     public static final String LOGIN_COOLDOWN = "登录过于频繁，请等待";
 
     public static final String SMS_VERIFICATION_CODE_INVALID = "短信验证码无效";
+    //新增充值提现相关常量
+    public static final String PAY_TYPE = "支付方式";
+    public static final String CALLBACK_URL = "回调地址";
+    public static final String AMOUNT = "金额";
+    public static final String MIN_ERROR = "不能小于0.01";
+    public static final String WITHDRAW_TYPE = "提现方式";
+    public static final String ACCOUNT = "账号";
+    public static final String PAY_TYPE_ERROR = "支付方式不支持";
+    public static final String PAY_ORDER_CREATE_FAILED = "支付订单创建失败";
+    public static final String BALANCE_INSUFFICIENT = "余额不足";
+    public static final String WITHDRAW_APPLY_FAILED = "提现申请失败";
+
+    public static final String WITHDRAW_AUDIT_SUCCESS = "提现审核成功";
+    public static final String WITHDRAW_AUDIT_FAILED = "提现审核失败";
+    public static final String FROZEN_BALANCE_INSUFFICIENT = "冻结余额不足";
+    public static final String WITHDRAW_APPLY_SUCCESS = "提现申请成功";
+    public static final String WITHDRAW_RECORD_NOT_FOUND = "提现记录不存在";
+    public static final String WITHDRAW_ALREADY_AUDITED =" 提现记录已审核";
+    // 消息常量补充（MessageConstant.java）
+    public static final String WITHDRAW_TRANSFER_FAILED = "提现转账失败";
 }
